@@ -1,0 +1,109 @@
+https://www.virtualdj.com/wiki/Plugins_SDKv8_Example6.html
+
+使用 SDK v8 开发的音频插件 (DSP缓冲)
+
+
+这是开始开发插件"MyPlugin8".的示例。我们使用类"CMyPlugin8"来定义我们的对象，但您可以使用您想要的。文件"Main.cpp"是对象"CMyPlugin8"的调用者，并且是与VDJ通信的入口点。
+
+对于此示例，您需要在项目中包含SDK v8中的以下文件：vdjPlugin8.h（所有插件的基本公共基类）和vdjDsp8.h（所有DSP插件的基类）
+您可以使用其他编译器，但请在电脑上找到该项目的Visual Studio C++项目示例，它将生成一个.dll文件。
+对于本示例，请将所有文件复制到同一文件夹中。
+
+MyPlugin8.h:
+#ifndef MYPLUGIN8_H
+#define MYPLUGIN8_H
+
+#include "vdjDsp8.h"
+
+class CMyPlugin8 : public IVdjPluginBufferDsp8
+{
+public公有权限:
+	HRESULT VDJ_API OnLoad();
+	HRESULT VDJ_API OnGetPluginInfo(TVdjPluginInfo8 *infos);
+	ULONG   VDJ_API Release();
+        HRESULT VDJ_API OnStart();
+	HRESULT VDJ_API OnStop();
+        short * VDJ_API OnGetSongBuffer(int pos, int nb);
+
+private私有权限:
+        int StartPos;
+};
+
+#endif
+
+
+MyPlugin8.cpp:
+#include "MyPlugin8.h"
+
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnLoad()
+{	
+	return S_OK;
+}
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnGetPluginInfo(TVdjPluginInfo8 *infos)
+{
+	infos->PluginName  = "插件名称";
+	infos->Author      = "开发作者";
+	infos->Description = "插件说明";
+	infos->Version     = "版本号1.0";
+	infos->Flags       = 0x00;  // 如果你想在碟盘停止时处理声音，也可以使用 VDJFLAG_PROCESSAFTERSTOP
+        infos->Bitmap = NULL;
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+ULONG VDJ_API CMyPlugin8::Release()
+{
+        delete this;
+	return 0;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnStart()
+{	
+        // 启动音频插件时在此处添加您的代码
+        StartPos = int(SongPosBeats * SongBpm);
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnStop()
+{	
+       // 音频插件停止时在此处添加您的代码
+
+       StartPos = 0;
+
+       return S_OK;
+}
+//---------------------------------------------------------------------------
+short * VDJ_API CMyPlugin8::OnGetSongBuffer(int pos, int nb)
+{	
+      // 在此处添加您的音频处理代码 使用 2*nb 浮点采样float（立体声信号） 的 *buffer 缓冲区
+      HRESULT hr;
+        
+      short *buffer;
+      hr  = GetSongBuffer(pos, nb, (short **) &buffer);
+
+      return buffer;
+}
+
+
+Main.cpp:
+// 这是COM对象的标准DLL加载程序
+
+#include "MyPlugin8.h"
+
+HRESULT VDJ_API DllGetClassObject(const GUID &rclsid,const GUID &riid,void** ppObject)
+{
+	if (memcmp(&rclsid,&CLSID_VdjPlugin8,sizeof(GUID))==0 && memcmp(&riid,&IID_IVdjPluginBuffer8,sizeof(GUID))==0)
+	{
+		*ppObject=new CMyPlugin8();
+	}
+        else
+	{
+		return CLASS_E_CLASSNOTAVAILABLE;
+	}
+
+	return NO_ERROR;
+}
+

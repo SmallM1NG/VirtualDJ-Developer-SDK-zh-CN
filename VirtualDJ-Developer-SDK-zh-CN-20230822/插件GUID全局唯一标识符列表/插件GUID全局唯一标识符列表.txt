@@ -1,0 +1,44 @@
+https://www.virtualdj.com/wiki/Plugins_GUID.html
+
+用于VDJ插件的GUID全局唯一标识符列表
+
+
+DllGetClassObject(const GUID &rclsid, const GUID &riid, void** ppObject) 函数根据插件中使用的类标识符CLSID 和组件接口IID，在 VDJ中加载插件的类（通过/根据 ppObject）。
+也就是说，VDJ会在内部列出所有可用的全局唯一标识符GUID，直到与您的插件匹配为止。
+
+例如在C++中（以DSP插件为例）：
+// 这是COM对象的标准DLL加载器。
+// 如果a和b匹配，memcmp(a, b, sizeof(XXXX)) 函数返回 0。
+// 如果插件返回CLASS_E_CLASSNOTAVAILABLE，则表示该插件与当前VDJ版本不兼容
+
+HRESULT VDJ_API DllGetClassObject(const GUID &rclsid,const GUID &riid,void** ppObject)
+{
+
+	if (memcmp(&rclsid,&CLSID_VdjPlugin8,sizeof(GUID))==0 && memcmp(&riid,&IID_IVdjPluginDsp8,sizeof(GUID))==0)
+	{
+		*ppObject = new CVDJClass8();
+	}
+	else if (memcmp(&rclsid,&CLSID_VdjPlugin6,sizeof(GUID))==0 && memcmp(&riid,&IID_IVdjPluginDsp,sizeof(GUID))==0)
+	{
+		*ppObject = new CVDJClass6();
+	}
+	else
+	{
+		return CLASS_E_CLASSNOTAVAILABLE;
+	}
+
+	return NO_ERROR;
+}
+
+在这个例子中，CVDJClass8将在VDJ 8上调用，CVDJClass6将在VDJ 7上调用，这样就可以在每次更改VDJ SDK版本时保持兼容性。
+
+
+SDK v8:
+
+CLSID_VdjPlugin8 = { 0xED8A8D87, 0xF4F9, 0x4DCD, { 0xBD, 0x24, 0x29, 0x14, 0x12, 0xE9, 0x3B, 0x60 } }
+IID_IVdjPluginBasic8 = { 0xa1d90ea1, 0x4d0d, 0x42dd, { 0xa4, 0xd0, 0xb8, 0xf3, 0x37, 0xb3, 0x21, 0xf1 } }
+IID_IVdjPluginDsp8 = { 0x7cfcf3f5, 0x6fb9, 0x434c, { 0xb6, 0x3, 0xd7, 0x3a, 0x88, 0xf6, 0x72, 0x26 } }
+IID_IVdjPluginBuffer8 = { 0x1d00e65f, 0x44c7, 0x41bf, { 0xa3, 0x6b, 0x04, 0xda, 0xf2, 0x67, 0x3b, 0x98 } }
+IID_IVdjPluginVideoFx8 = { 0xbf1876aa, 0x3cbd, 0x404a, { 0xbe, 0xab, 0x5f, 0x8b, 0x51, 0xe3, 0x90, 0xc0 } }
+IID_IVdjPluginVideoTransition8 = { 0x28eda49e, 0x5440, 0x4970, { 0xbe, 0xcc, 0x6d, 0x8e, 0xba, 0xe9, 0x61, 0xe } }
+IID_IVdjPluginVideoTransitionMultiDeck8 = { 0x3a04c2f9, 0x5dea, 0x4329, { 0x8b, 0xea, 0x75, 0xef, 0xf7, 0xc9, 0x62, 0xda } }

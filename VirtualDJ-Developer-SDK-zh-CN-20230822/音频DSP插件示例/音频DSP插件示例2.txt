@@ -1,0 +1,177 @@
+https://www.virtualdj.com/wiki/Plugins_SDKv8_Example1.html
+
+使用 SDK v8 k开发的音频插件 (DSP) - 示例 2
+
+
+这是开始开发插件"MyPlugin8"的示例。我们使用类"CMyPlugin8"来定义我们的对象，但您可以使用您想要的。文件"Main.cpp"是对象"CMyPlugin8"的调用者，并且是与VDJ通信的入口点。
+
+对于此示例，您需要在项目中包含SDK v8中的以下文件：vdjPlugin8.h（所有插件的基本公共基类）和vdjDsp8.h（所有 DSP插件的基类）
+您可以使用其他编译器，但请在电脑上找到该项目的Visual Studio C++项目示例。它将生成一个.dll文件
+对于本示例，请将所有文件复制到同一文件夹中。
+
+MyPlugin8.h:
+#ifndef MYPLUGIN8_H
+#define MYPLUGIN8_H
+
+#include "vdjDsp8.h"
+
+#include <cmath>
+// round() 仅在C++11中定义，因此我们使用此解决方法
+#define round(v) ((int)floor((v)+0.5f))
+
+class CMyPlugin8 : public IVdjPluginDsp8
+{
+public公有权限:
+	HRESULT VDJ_API OnLoad();
+	HRESULT VDJ_API OnGetPluginInfo(TVdjPluginInfo8 *infos);
+	ULONG   VDJ_API Release();
+        HRESULT VDJ_API OnStart();
+	HRESULT VDJ_API OnStop();
+        HRESULT VDJ_API OnProcessSamples(float *buffer, int nb);
+
+private私有权限:
+        int SongBpm2;
+	int StartPos;
+
+        //  如果您想使用短采样short 16位，而不是浮点采样 float 32 位，请使用
+        short bufferShort[8194]； // 我们考虑声音缓冲区最大可容纳4096个采样点（但也可以动态设定）
+        void ConvertFloat2Short(short *BufferOut,float *BufferIn, int BufferSize);
+	void ConvertShort2Float(float *BufferOut,short *BufferIn, int BufferSize);
+
+};
+
+#endif
+
+
+MyPlugin8.cpp:
+#include "MyPlugin8.h"
+
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnLoad()
+{	
+	SongBpm2=0;
+        StartPos=0;
+
+    return S_OK;
+}
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnGetPluginInfo(TVdjPluginInfo8 *infos)
+{
+	infos->PluginName  = "插件名称";
+	infos->Author      = "开发作者";
+	infos->Description = "插件说明";
+	infos->Version     = "版本1.0";
+	infos->Flags       = 0x00;  // 如果想在碟盘停止时处理声音，也可以使用 VDJFLAG_PROCESSAFTERSTOP
+        infos->Bitmap = NULL;
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+ULONG VDJ_API CMyPlugin8::Release()
+{
+       delete this;
+	return 0;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnStart()
+{	
+      // 启动音频插件时，在此处添加代码
+
+      SongBpm2 = SongBpm?SongBpm:(SampleRate/2); // 默认拍速为120BPM
+	StartPos = int(SongPosBeats * SongBpm2);
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnStop()
+{	
+      // 当音频插件停止时，在此处添加您的代码
+
+
+       StartPos = 0;
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+ HRESULT VDJ_API CMyPlugin8::OnProcessSamples(float *buffer, int nb)
+{	
+      // 使用音频缓冲器在此处添加音频处理代码 *缓冲器包含 2*nb 浮点采样（立体声信号）
+
+        float out[2], in[2];
+	int pos;
+        int CurrentPos;
+	float xBeat;
+
+	SongBpm2 = SongBpm?SongBpm:(SampleRate/2);
+          pos = int(SongPosBeats * SongBpm2);
+
+       // 转换短采样为浮点 ConvertFloat2Short(bufferShort,buffer,2*nb); 
+
+	// 通过音频缓冲区读取'nb'立体声采样 等于 ( = 2 * 'nb' 单声道采样) 
+        for(int i=0;i<nb;i++)
+	{
+               CurrentPos = pos + i;
+		xBeat = (CurrentPos - StartPos)/float(SongBpm2);  // 'x' 拍数来自StartPos
+
+                // 这是一个立体声信号，因此含有两个通道/声道。
+		for(int ch=0;ch<2;ch++)
+		{
+                    in[ch] = buffer[2*i + ch];  
+
+                        // 在本示例中，我们仅保留左声道(ch==0) 并将右声道静音(ch==1)
+                       if(ch==1) out[ch] = 0;
+                        else  out[ch] = in[ch];
+
+                     buffer[2*i + ch] = out[ch]; 
+		}
+	}
+
+
+      // 转换短采样为浮点 ConvertShort2Float(buffer,bufferShort,2*nb);
+
+	return S_OK;
+}
+//------------------------------------------------------------------------------------
+void CMyPlugin8::ConvertFloat2Short(short *BufferOut,float *BufferIn, int BufferSize)
+{
+	int v;
+	int j;
+
+	for(j=0;j<BufferSize;j++)
+	{        
+		v = round (32768.0f * BufferIn[j]);
+		if (v < -32768)  v = -32768;
+		else if (v > 32767) v = 32767;
+		BufferOut[j] = (short) v;
+	}
+}
+//------------------------------------------------------------------------------------
+void CMyPlugin8::ConvertShort2Float(float *BufferOut,short *BufferIn,int BufferSize)
+{
+	int j;
+
+	for(j=0;j<BufferSize;j++)
+	{
+		BufferOut[j] = (float) BufferIn[j] / 32768.0f;
+	}
+}
+
+
+Main.cpp:
+// 这是COM对象的标准DLL加载程序。
+
+#include "MyPlugin8.h"
+
+HRESULT VDJ_API DllGetClassObject(const GUID &rclsid,const GUID &riid,void** ppObject)
+{
+	if (memcmp(&rclsid,&CLSID_VdjPlugin8,sizeof(GUID))==0 && memcmp(&riid,&IID_IVdjPluginDsp8,sizeof(GUID))==0)
+	{
+		*ppObject=new CMyPlugin8();
+	}
+        else
+	{
+		return CLASS_E_CLASSNOTAVAILABLE;
+	}
+
+	return NO_ERROR;
+}

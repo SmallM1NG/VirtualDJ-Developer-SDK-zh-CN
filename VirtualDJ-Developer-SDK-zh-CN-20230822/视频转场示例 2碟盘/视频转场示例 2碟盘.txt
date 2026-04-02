@@ -1,0 +1,201 @@
+https://www.virtualdj.com/wiki/Plugins_SDKv8_Example5.html
+
+使用SDK v8开发的视频转换插件（2 碟盘）
+
+
+下面是一个开始开发插件"MyPlugin8"的示例。 我们使用"CMyPlugin8"类来定义我们的对象，但你也可以使用你想要的。 文件 "Main.cpp"是对象"CMyPlugin8"的调用者，是与VDJ通信的入口。
+
+在本例中，您需要在项目中包含SDK v8中的以下文件：vdjPlugin8.h（所有插件的基本通用基类）和vdjVideo8.h（所有视频插件的基类）
+您也可以使用其他编译器，但请在电脑上找到一个Visual Studio C++项目示例。 它会生成一个.dll 文件
+在本示例中，请将所有文件复制到同一文件夹中。
+
+
+MyPlugin8.h:
+#ifndef MYPLUGIN8_H
+#define MYPLUGIN8_H
+
+#include "vdjVideo8.h"
+
+#if (defined(VDJ_WIN))
+ #define DIRECT3D_VERSION 0x9000
+ #include <d3dx9.h>
+ #pragma comment(lib, "d3dx9.lib")
+#elif (defined(VDJ_MAC))
+ #include <OpenGL/OpenGL.h> // 你必须在XCode项目中导入OpenGL.framework
+typedef unsigned long D3DCOLOR;  // 使用与微软Microsoft Direct3D的方法相同
+#define D3DCOLOR_RGBA(r,g,b,a) ((D3DCOLOR)(((((a)&0xFF)<<24)|(((r)&0xFF)<<16)|((g)&0xFF)<<8)|((b)&0xFF))) 
+#define glColorD3D(d3dcolor) glColor4ub((d3dcolor>>16)&255, (d3dcolor>>8)&255, d3dcolor&255, (d3dcolor>>24)&255 )
+// 一些色彩
+const D3DCOLOR white             = D3DCOLOR_RGBA(255,255,255,255);
+const D3DCOLOR black             = D3DCOLOR_RGBA(0,0,0,255);
+const D3DCOLOR red               = D3DCOLOR_RGBA(255,0,0,255);
+const D3DCOLOR green             = D3DCOLOR_RGBA(0,255,0,255);
+const D3DCOLOR blue              = D3DCOLOR_RGBA(0,0,255,255);
+const D3DCOLOR translucide_black = D3DCOLOR_RGBA(0,0,0,120);
+#endif
+
+class CMyPlugin8 : public IVdjPluginVideoTransition8
+{
+public公有权限:
+	HRESULT VDJ_API OnLoad();
+	HRESULT VDJ_API OnGetPluginInfo(TVdjPluginInfo8 *infos);
+	ULONG   VDJ_API Release();
+        HRESULT VDJ_API OnDeviceInit();
+	HRESULT VDJ_API OnDeviceClose();
+        HRESULT VDJ_API OnDraw(float crossfader);
+
+private私有权限:
+#if (defined(VDJ_WIN))
+    IDirect3DDevice9 *D3DDevice;
+IDirect3DTexture9 *D3DTexture; 
+IDirect3DSurface9* D3DSurface;
+
+#elif (defined(VDJ_MAC))
+
+ GLuint GLTexture;
+
+#endif
+};
+
+#endif
+
+
+MyPlugin8.cpp:
+#include "MyPlugin8.h"
+
+#if (defined(VDJ_WIN))
+#ifndef SAFE_RELEASE
+	#define SAFE_RELEASE(p)      { if (p) { (p)->Release(); (p)=NULL; } }
+#endif
+#endif
+
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnLoad()
+{	
+      // 添加插件调用时您的代码
+
+#if (defined(VDJ_WIN))
+
+ D3DDevice = NULL;
+ D3DTexture = NULL;
+ D3DSurface = NULL;
+
+#elif (defined(VDJ_MAC))
+
+ GLTexture = 0;
+
+#endif
+     
+	return S_OK;
+}
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnGetPluginInfo(TVdjPluginInfo8 *infos)
+{
+	infos->PluginName = "插件名称";
+	infos->Author = "开发作者";
+	infos->Description = "插件信息";
+	infos->Version = "版本号1.0";
+	infos->Flags       = VDJFLAG_VIDEOTRANSITION_CONTINOUS; 
+	infos->Bitmap = NULL;
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+ULONG VDJ_API CMyPlugin8::Release()
+{
+	// 添加插件释放时您的代码
+
+       delete this;
+	return 0;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API  CMyPlugin8::OnDeviceInit()
+{	
+      // 在该位置添加您的代码
+       HRESULT hr;
+	
+#if (defined(VDJ_WIN))
+
+	hr = GetDevice(VdjVideoEngineDirectX9, (void**) &D3DDevice);
+	if(hr!=S_OK || D3DDevice == NULL) return S_FALSE;
+
+#endif
+      
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API  CMyPlugin8::OnDeviceClose()
+{	
+      // 在该位置添加您的代码
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnDraw(float crossfader)
+{	
+      // 在该位置添加您的代码
+HRESULT hr;
+
+      int main=(crossfader<=0.5f)?1:2;
+            float factor = 1.0f - crossfader/0.5f;
+       int alpha;
+ TVertex  *vertices;
+DWORD AlphaColor;
+
+#if (defined(VDJ_WIN))
+
+ hr = GetTexture(VdjVideoEngineDirectX9, main, (void **) &D3DTexture);
+ hr = D3DTexture->GetSurfaceLevel(0, &D3DSurface);
+
+SAFE_RELEASE(D3DTexture);
+ SAFE_RELEASE(D3DSurface);
+
+#elif (defined(VDJ_MAC))
+
+ hr = GetTexture(VdjVideoEngineOpenGL, (void **) &GLTexture, &vertices);
+
+ #endif
+
+        if (crossfader<=0.5f) alpha=(int)(factor* 255);
+	else alpha=(int)((1.0f- factor)*255);
+	
+	vertices = GetVertices(main);
+
+     AlphaColor =  D3DCOLOR_RGBA(255,255,255, alpha);  // 有关Mac系统上的声明，请参照MyPlugin8.h
+      
+      vertices[0].color = AlphaColor;
+      vertices[1].color = AlphaColor;
+      vertices[2].color = AlphaColor;
+      vertices[3].color = AlphaColor;
+
+#if (defined(VDJ_WIN))
+
+      // D3DDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+
+#elif (defined(VDJ_MAC))
+
+          // glColorD3D(AlphaColor);   // 参照MyPlugin8.h的说明
+
+#endif
+
+       hr = DrawDeck(main, vertices);
+
+       return S_OK;
+}
+
+Main.cpp:
+#include "MyPlugin8.h"
+
+HRESULT VDJ_API DllGetClassObject(const GUID &rclsid,const GUID &riid,void** ppObject)
+{
+	if (memcmp(&rclsid,&CLSID_VdjPlugin8,sizeof(GUID))==0 && memcmp(&riid,&IID_IVdjPluginVideoTransition8,sizeof(GUID))==0)
+	{
+		*ppObject=new CMyPlugin8();
+	}
+        else
+	{
+		return CLASS_E_CLASSNOTAVAILABLE;
+	}
+
+	return NO_ERROR;
+}

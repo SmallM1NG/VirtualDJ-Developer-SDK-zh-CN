@@ -1,0 +1,165 @@
+https://www.virtualdj.com/wiki/Plugins_SDKv8_Example.html
+
+基本插件SDK（默认UI界面）
+
+
+下面是一个开发插件"MyPlugin8"的示例。我们使用"CMyPlugin8"类来定义我们的对象，但您可以使用您想要的。文件"Main.cpp"是对象"CMyPlugin8"的调用者，并且是与VDJ通信的入口点。
+我们还在本示例中使用默认界面 VDJINTERFACE_DEFAULT 来轻松在插件中绘制横推/按钮/...。
+
+对于此示例，您需要在项目中包含SDK v8中的以下文件：vdjPlugin8.h（所有插件的基本公共基类）
+您可以使用其他编译器，但请在电脑上找到该项目的Visual Studio C++项目示例。它将会生成一个.dll文件
+对于本示例，请将所有文件复制到同一文件夹中。
+
+MyPlugin8.h:
+#ifndef MYPLUGIN8_H
+#define MYPLUGIN8_H
+
+// 我们包含 stdio.h 只是为了使用 sprintf() 函数
+// 我们为 sprintf() 函数的警告定义 _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+
+#include "vdjPlugin8.h"
+
+class CMyPlugin8 : public IVdjPlugin8
+{
+public公有权限:
+	HRESULT VDJ_API OnLoad();
+	HRESULT VDJ_API OnGetPluginInfo(TVdjPluginInfo8 *infos);
+	ULONG VDJ_API Release();
+    HRESULT VDJ_API OnGetUserInterface(TVdjPluginInterface8 *pluginInterface);
+    HRESULT VDJ_API OnParameter(int id);
+    HRESULT VDJ_API OnGetParameterString(int id, char *outParam, int outParamSize);
+
+private私有权限:
+	int m_Reset;
+	float m_Dry;
+	float m_Wet;
+
+	bool isMasterFX(); // 使用 GetInfo() 的附加函数示例
+      
+protected继承权限:
+	typedef enum _ID_Interface
+	{
+		ID_BUTTON_1,
+		ID_SLIDER_1
+	} ID_Interface;
+};
+
+#endif
+
+MyPlugin8.cpp:
+#include "MyPlugin8.h"
+
+
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnLoad()
+{ 
+	// 添加插件调用时您的代码
+       m_Reset = 0;
+	m_Dry = 0.0f;
+	m_Wet = 0.0f;
+
+	bool bMasterFX = isMasterFX();
+
+
+	DeclareParameterButton(&m_Reset,ID_BUTTON_1,"Reset","R");
+	DeclareParameterSlider(&m_Wet,ID_SLIDER_1,"Dry/Wet","D/W",1.0f);
+
+	OnParameter(ID_SLIDER_1);
+
+	return S_OK;
+}
+//-----------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnGetPluginInfo(TVdjPluginInfo8 *infos)
+{
+    infos->PluginName = "插件名称";
+    infos->Author = "开发作者";
+    infos->Description = "插件信息";
+    infos->Version = "版本号1.0";
+	infos->Flags = 0x00;
+	infos->Bitmap = NULL;
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+ULONG VDJ_API CMyPlugin8::Release()
+{
+	// 添加插件释放时您的代码
+
+	delete this;
+	return 0;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnGetUserInterface(TVdjPluginInterface8 *pluginInterface)
+{
+	pluginInterface->Type = VDJINTERFACE_DEFAULT;
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnParameter(int id)
+{
+	switch(id)
+	{
+		case ID_BUTTON_1:
+			if(m_Reset == 1)
+			{
+				m_Wet = 0.5f;
+				//HRESULT hr;
+				//hr = SendCommand("effect_slider 1 50%");
+			}
+			break;
+
+		case ID_SLIDER_1:
+			m_Dry = 1 - m_Wet; 
+			break;
+	}
+
+	return S_OK;
+}
+//---------------------------------------------------------------------------
+HRESULT VDJ_API CMyPlugin8::OnGetParameterString(int id, char *outParam, int outParamSize) 
+{
+	switch(id)
+	{
+		case ID_SLIDER_1:
+			sprintf(outParam,"+%.0f%%", m_Wet*100);
+			break;
+	}
+
+	return S_OK;
+}
+
+//-------------------------------------------------------------------------------------------------------------------------------------
+// 下面附加功能函数仅用于解释某些功能（可以删除）
+//-------------------------------------------------------------------------------------------------------------------------------------
+bool CMyPlugin8::isMasterFX()
+{
+	double qRes;
+	HRESULT hr = S_FALSE;
+
+	hr = GetInfo("get_deck 'master' ? true : false", &qRes);
+
+	if(qRes==1.0f) return true;
+	else return false;
+}
+
+Main.cpp:
+#include "MyPlugin8.h"
+
+// 这是COM对象的标准DLL加载程序。
+
+HRESULT VDJ_API DllGetClassObject(const GUID &rclsid,const GUID &riid,void** ppObject)
+{
+	if (memcmp(&rclsid,&CLSID_VdjPlugin8,sizeof(GUID))==0 && memcmp(&riid,&IID_IVdjPluginBasic8,sizeof(GUID))==0)
+	{
+		*ppObject=new CMyPlugin8();
+	}
+        else
+	{
+		return CLASS_E_CLASSNOTAVAILABLE;
+	}
+
+	return NO_ERROR;
+}
